@@ -92,6 +92,7 @@ class KlipperScreen(Gtk.Window):
     max_retries = 4
     initialized = initializing = False
     popup_timeout = None
+    ongoing_macros = set()
 
     def __init__(self, args, version):
         try:
@@ -254,6 +255,10 @@ class KlipperScreen(Gtk.Window):
         for p in self.printer.get_output_pins():
             requested_updates['objects'][p] = ["value"]
 
+        macros = [v for v in self.apiclient.send_request("printer/objects/list")['result']['objects'] if v.startswith("gcode_macro ")]
+        for m in macros:
+            requested_updates['objects'][m] = ["running"]
+
         self._ws.klippy.object_subscription(requested_updates)
 
     def _load_panel(self, panel, *args, **kwargs):
@@ -354,6 +359,30 @@ class KlipperScreen(Gtk.Window):
             GLib.source_remove(self.popup_timeout)
         self.popup_message = self.popup_timeout = None
         return False
+    
+    def show_modal_dialog_message(self, message):
+        scroll = self.gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        vbox.set_halign(Gtk.Align.CENTER)
+        vbox.set_valign(Gtk.Align.CENTER)
+        label = Gtk.Label(label=message)
+        vbox.add(label)
+        scroll.add(vbox)
+        buttons = [
+            {"name": _("Continue"), "response": Gtk.ResponseType.OK},
+            {"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL}
+        ]
+        dialog = self.gtk.Dialog(self, buttons, scroll, self._send_dialog_response)
+        dialog.set_keep_above(True)
+        dialog.set_title("ModalDialog")
+
+    def _send_dialog_response(self, dialog, response_id):
+        self.gtk.remove_dialog(dialog)
+        if response_id == Gtk.ResponseType.OK:
+            self.apiclient.send_request("printer/popup/ack")
+        else:
+            self.apiclient.send_request("printer/popup/abort")
 
     def show_error_modal(self, err, e=""):
         logging.error(f"Showing error modal: {err} {e}")
@@ -480,7 +509,8 @@ class KlipperScreen(Gtk.Window):
         for _ in self.base_panel.content.get_children():
             self.base_panel.content.remove(_)
         for dialog in self.dialogs:
-            self.gtk.remove_dialog(dialog)
+            if not dialog.get_title() == "ModalDialog":
+                self.gtk.remove_dialog(dialog)
         for panel in list(self.panels):
             if hasattr(self.panels[panel], "deactivate"):
                 self.panels[panel].deactivate()
@@ -715,6 +745,7 @@ class KlipperScreen(Gtk.Window):
             self.printer.process_update({'webhooks': {'state': "ready"}})
         elif action == "notify_status_update" and self.printer.state != "shutdown":
             self.printer.process_update(data)
+            self.check_macro_running(data)
         elif action == "notify_filelist_changed":
             if self.files is not None:
                 self.files.process_update(data)
@@ -736,6 +767,8 @@ class KlipperScreen(Gtk.Window):
                     self.show_popup_message(data[6:], 1)
                 elif data.startswith("!! "):
                     self.show_popup_message(data[3:], 3)
+                elif data.startswith("$$$ "):
+                    self.show_modal_dialog_message(data[4:])
                 elif "unknown" in data.lower() and \
                         not ("TESTZ" in data or "MEASURE_AXES_NOISE" in data or "ACCELEROMETER_QUERY" in data):
                     self.show_popup_message(data)
@@ -748,6 +781,21 @@ class KlipperScreen(Gtk.Window):
                         script
                     )
         self.process_update(action, data)
+
+    def check_macro_running(self, data):
+        was_empty = len(self.ongoing_macros) == 0
+        for k, v in data.items():
+            if not k.startswith('gcode_macro '):
+                continue
+            name = k.replace('gcode_macro ', '')
+            if v['running']:
+                self.ongoing_macros.add(name)
+            elif name in self.ongoing_macros:
+                self.ongoing_macros.remove(name)
+        if was_empty and not len(self.ongoing_macros) == 0:
+            self.show_panel("macro", "macro", "Macro Running", 2)
+        if not was_empty and len(self.ongoing_macros) == 0:
+            self.show_panel('main_panel', "main_menu", None, 2, items=self._config.get_menu_items("__main"))
 
     def process_update(self, *args):
         GLib.idle_add(self.base_panel.process_update, *args)
