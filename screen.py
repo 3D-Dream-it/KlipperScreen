@@ -366,8 +366,12 @@ class KlipperScreen(Gtk.Window):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         vbox.set_halign(Gtk.Align.CENTER)
         vbox.set_valign(Gtk.Align.CENTER)
-        label = Gtk.Label(label=message)
-        vbox.add(label)
+        for line in message.split('/'):
+            label = Gtk.Label(label=line)
+            label.set_justify(Gtk.Justification.CENTER)
+            label.set_name("dialog-label")
+            label.set_line_wrap(True)
+            vbox.add(label)
         scroll.add(vbox)
         buttons = [
             {"name": _("Continue"), "response": Gtk.ResponseType.OK},

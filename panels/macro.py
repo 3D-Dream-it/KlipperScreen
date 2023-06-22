@@ -22,7 +22,7 @@ class MacroRunningPanel(ScreenPanel):
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         vbox.set_halign(Gtk.Align.CENTER)
         vbox.set_valign(Gtk.Align.CENTER)
-        label = Gtk.Label(label=_("Wait ..."))
+        label = Gtk.Label(label=_("Attendi ..."))
         spinner = Gtk.Spinner()
         vbox.add(spinner)
         vbox.add(label)

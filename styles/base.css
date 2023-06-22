@@ -129,6 +129,10 @@ label {
     color: white;
 }
 
+#dialog-label {
+    font-size: 25px;
+}
+
 menu {
     background-color: #13181C;
     border: .1em solid #cccccc;
