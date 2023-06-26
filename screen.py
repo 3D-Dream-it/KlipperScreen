@@ -787,6 +787,10 @@ class KlipperScreen(Gtk.Window):
         self.process_update(action, data)
 
     def check_macro_running(self, data):
+        if self.printer.state == "printing":
+            logging.info('skipping macro, its printing')
+            return
+        
         was_empty = len(self.ongoing_macros) == 0
         for k, v in data.items():
             if not k.startswith('gcode_macro '):
@@ -796,9 +800,17 @@ class KlipperScreen(Gtk.Window):
                 self.ongoing_macros.add(name)
             elif name in self.ongoing_macros:
                 self.ongoing_macros.remove(name)
+
         if was_empty and not len(self.ongoing_macros) == 0:
             self.show_panel("macro", "macro", "Macro Running", 2)
-        if not was_empty and len(self.ongoing_macros) == 0:
+            return
+        
+        if not(not was_empty and len(self.ongoing_macros) == 0):
+            return
+        
+        if self.printer.state == "paused":
+            self.show_panel('job_status', "job_status", _("Printing"), 2)
+        else:
             self.show_panel('main_panel', "main_menu", None, 2, items=self._config.get_menu_items("__main"))
 
     def process_update(self, *args):
