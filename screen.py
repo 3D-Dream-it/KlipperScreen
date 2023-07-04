@@ -788,7 +788,6 @@ class KlipperScreen(Gtk.Window):
 
     def check_macro_running(self, data):
         if self.printer.state == "printing":
-            logging.info('skipping macro, its printing')
             return
         
         was_empty = len(self.ongoing_macros) == 0

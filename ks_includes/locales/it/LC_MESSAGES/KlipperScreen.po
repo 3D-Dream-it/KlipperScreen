@@ -687,7 +687,7 @@ msgid "Unknown screw position"
 msgstr "Posizione della vite sconosciuta"
 
 msgid "Unload"
-msgstr "Scaricare"
+msgstr "Scarica"
 
 msgid "Unretract Extra Length"
 msgstr "Lunghezza extra non retratta"
