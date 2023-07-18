@@ -360,7 +360,7 @@ class KlipperScreen(Gtk.Window):
         self.popup_message = self.popup_timeout = None
         return False
     
-    def show_modal_dialog_message(self, message):
+    def show_modal_dialog_message(self, message, mode):
         scroll = self.gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -373,10 +373,14 @@ class KlipperScreen(Gtk.Window):
             label.set_line_wrap(True)
             vbox.add(label)
         scroll.add(vbox)
-        buttons = [
-            {"name": _("Continue"), "response": Gtk.ResponseType.OK},
-            {"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL}
-        ]
+        buttons = []
+        if mode == 1:
+            buttons.append({"name": _("Close"), "response": Gtk.ResponseType.CLOSE})
+        elif mode == 2:
+            buttons.append({"name": _("Ok"), "response": Gtk.ResponseType.OK})
+        else:
+            buttons.append({"name": _("Continue"), "response": Gtk.ResponseType.OK})
+            buttons.append({"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL})
         dialog = self.gtk.Dialog(self, buttons, scroll, self._send_dialog_response)
         dialog.set_keep_above(True)
         dialog.set_title("ModalDialog")
@@ -384,9 +388,9 @@ class KlipperScreen(Gtk.Window):
     def _send_dialog_response(self, dialog, response_id):
         self.gtk.remove_dialog(dialog)
         if response_id == Gtk.ResponseType.OK:
-            self.apiclient.send_request("printer/popup/ack")
-        else:
-            self.apiclient.send_request("printer/popup/abort")
+            self.apiclient.send_request("printer/dialogs/ack")
+        elif response_id == Gtk.ResponseType.CANCEL:
+            self.apiclient.send_request("printer/dialogs/abort")
 
     def show_error_modal(self, err, e=""):
         logging.error(f"Showing error modal: {err} {e}")
@@ -771,8 +775,12 @@ class KlipperScreen(Gtk.Window):
                     self.show_popup_message(data[6:], 1)
                 elif data.startswith("!! "):
                     self.show_popup_message(data[3:], 3)
+                elif data.startswith("*** "):
+                    self.show_modal_dialog_message(data[4:], 1)
+                elif data.startswith("### "):
+                    self.show_modal_dialog_message(data[4:], 2)
                 elif data.startswith("$$$ "):
-                    self.show_modal_dialog_message(data[4:])
+                    self.show_modal_dialog_message(data[4:], 3)
                 elif "unknown" in data.lower() and \
                         not ("TESTZ" in data or "MEASURE_AXES_NOISE" in data or "ACCELEROMETER_QUERY" in data):
                     self.show_popup_message(data)
