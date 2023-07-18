@@ -137,6 +137,7 @@ class ZCalibratePanel(ScreenPanel):
 
         if method == "probe":
             self._move_to_position()
+            self._screen._ws.klippy.gcode_script(KlippyGcodes.PROBE_CALIBRATE_skip_z)
             self._screen._ws.klippy.gcode_script(KlippyGcodes.PROBE_CALIBRATE)
         elif method == "mesh":
             self._screen._ws.klippy.gcode_script("BED_MESH_CALIBRATE")
