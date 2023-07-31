@@ -72,3 +72,11 @@ class KlippyGcodes:
     @staticmethod
     def bed_mesh_save(profile):
         return f"BED_MESH_PROFILE SAVE='{profile}'"
+
+    @staticmethod
+    def update_scale(device, target, value):
+        return f"UPDATE_SCALE DEVICE='{device}' TARGET='{target}' VALUE='{value}'"
+
+    @staticmethod
+    def scale_calibration(device, value):
+        return f"SCALE_CALIBRATION DEVICE='{device}' VALUE='{value}'"

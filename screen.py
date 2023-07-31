@@ -246,6 +246,8 @@ class KlipperScreen(Gtk.Window):
         for extruder in self.printer.get_tools():
             requested_updates['objects'][extruder] = [
                 "target", "temperature", "pressure_advance", "smooth_time", "power"]
+        for scale in self.printer.get_scales():
+            requested_updates['objects'][scale] = ["weight", "diameter", "tare", "density"]
         for h in self.printer.get_heaters():
             requested_updates['objects'][h] = ["target", "temperature", "power"]
         for f in self.printer.get_fans():
@@ -254,10 +256,8 @@ class KlipperScreen(Gtk.Window):
             requested_updates['objects'][f] = ["enabled", "filament_detected"]
         for p in self.printer.get_output_pins():
             requested_updates['objects'][p] = ["value"]
-
-        macros = [v for v in self.apiclient.send_request("printer/objects/list")['result']['objects'] if v.startswith("gcode_macro ")]
-        for m in macros:
-            requested_updates['objects'][m] = ["running"]
+        for macro in self.printer.get_config_section_list("gcode_macro "):
+            requested_updates['objects'][macro] = ["running"]
 
         self._ws.klippy.object_subscription(requested_updates)
 

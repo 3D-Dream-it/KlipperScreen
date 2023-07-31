@@ -16,8 +16,10 @@ class Printer:
         self.devices = {}
         self.power_devices = {}
         self.tools = []
+        self.scales = []
         self.extrudercount = 0
         self.tempdevcount = 0
+        self.scaledevcount = 0
         self.fancount = 0
         self.output_pin_count = 0
         self.store_timeout = None
@@ -31,8 +33,10 @@ class Printer:
         self.data = data
         self.devices = {}
         self.tools = []
+        self.scales = []
         self.extrudercount = 0
         self.tempdevcount = 0
+        self.scaledevcount = 0
         self.fancount = 0
         self.output_pin_count = 0
         self.tempstore = {}
@@ -82,18 +86,29 @@ class Printer:
                 r['max_y'] = float(r['max_y'])
                 r['min_y'] = float(r['min_y'])
                 r['points'] = [[float(j.strip()) for j in i.split(",")] for i in r['points'].strip().split("\n")]
+            if x.startswith('scale '):
+                self.scaledevcount += 1
+                self.scales.append(x)
+                self.devices[x] = {
+                    "weight": 0.,
+                    "tare": self.config[x].get('tare', 0.),
+                    "diameter": self.config[x].get('diameter', 0.),
+                    "density": self.config[x].get('density', 0.),
+                }
         self.process_update(data)
 
         logging.info(f"Klipper version: {printer_info['software_version']}")
         logging.info(f"# Extruders: {self.extrudercount}")
         logging.info(f"# Temperature devices: {self.tempdevcount}")
+        logging.info(f"# Scale devices: {self.scaledevcount}")
         logging.info(f"# Fans: {self.fancount}")
         logging.info(f"# Output pins: {self.output_pin_count}")
+        logging.info(f"# Devices: {self.devices}")
 
     def process_update(self, data):
         if self.data is None:
             return
-        for x in (self.get_tools() + self.get_heaters() + self.get_filament_sensors()):
+        for x in (self.get_tools() + self.get_heaters() + self.get_filament_sensors() + self.get_scales()):
             if x in data:
                 for i in data[x]:
                     self.set_dev_stat(x, i, data[x][i])
@@ -220,6 +235,7 @@ class Printer:
             "printer": {
                 "extruders": {"count": self.extrudercount},
                 "temperature_devices": {"count": self.tempdevcount},
+                "scale_devices": {"count": self.scaledevcount},
                 "fans": {"count": self.fancount},
                 "output_pins": {"count": self.output_pin_count},
                 "gcode_macros": {"count": len(self.get_gcode_macros())},
@@ -311,6 +327,9 @@ class Printer:
 
     def get_tools(self):
         return self.tools
+
+    def get_scales(self):
+        return self.scales
 
     def get_tool_number(self, tool):
         return self.tools.index(tool)

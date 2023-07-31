@@ -182,3 +182,13 @@ class ScreenPanel:
             self.labels[dev].set_label(new_label_text)
         elif dev in self.devices:
             self.devices[dev]["temp"].get_child().set_label(new_label_text)
+
+    def update_weight(self, device, value):
+        if value is None:
+            return
+        
+        def avoid_zero(data):
+            return data if data else 0.
+        
+        if device in self.devices:
+            self.devices[device]["weight"].get_child().set_label(f"{avoid_zero(value):.2f} Kg")
