@@ -135,7 +135,7 @@ class ScalePanel(ScreenPanel):
             if value == current:
                 ctx.add_class("distbutton_active")
             distgrid.attach(self.labels[value], idx, 1, 1, 1)
-        custom = self._gtk.Button(label=_('Custom'), scale=self.bts)
+        custom = self._gtk.Button(label='...', scale=self.bts)
         custom.connect("clicked", self.show_numpad, device, target)
         ctx = custom.get_style_context()
         ctx.add_class("distbutton_bottom")
@@ -176,12 +176,12 @@ class ScalePanel(ScreenPanel):
             self._screen._ws.klippy.gcode_script(KlippyGcodes.scale_calibration(device, value))
             self.hide_config(widget)
 
-        if "keypad" not in self.labels:
-            self.labels["keypad"] = DecimalKeypad(self._screen, on_value_confirm, self.hide_config, title="Known weight (Kg)")
-        self.labels["keypad"].clear()
+        if "keypad2" not in self.labels:
+            self.labels["keypad2"] = DecimalKeypad(self._screen, on_value_confirm, self.hide_config, title="Known weight (Kg)")
+        self.labels["keypad2"].clear()
 
         self.grid.remove_column(1)
-        self.grid.attach(self.labels["keypad"], 1, 0, 1, 1)
+        self.grid.attach(self.labels["keypad2"], 1, 0, 1, 1)
         self.grid.show_all()
 
     def process_update(self, action, data):

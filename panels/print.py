@@ -314,16 +314,73 @@ class PrintPanel(ScreenPanel):
         grid.set_vexpand(True)
         grid.set_halign(Gtk.Align.CENTER)
         grid.set_valign(Gtk.Align.CENTER)
-        grid.add(label)
+        grid.attach(label, 0, 0, 1, 1)
 
         pixbuf = self.get_file_image(filename, self._screen.width * .9, self._screen.height * .6)
         if pixbuf is not None:
             image = Gtk.Image.new_from_pixbuf(pixbuf)
             image.set_vexpand(False)
-            grid.attach_next_to(image, label, Gtk.PositionType.BOTTOM, 1, 1)
+            grid.attach(image, 0, 1, 1, 1)
+
+        metadata_response = self._screen.apiclient.send_request(f"server/files/metadata?filename={filename}")
+        if metadata_response:
+            metadata = metadata_response['result']
+            if "filament_weight_total" in metadata and "estimated_time" in metadata:
+                checkgrid = Gtk.Grid()
+                title = Gtk.Label()
+                title.set_markup(f"<b>{_('Filament Usage')}</b>")
+                title.set_hexpand(True)
+                title.set_halign(Gtk.Align.CENTER)
+                req = Gtk.Label()
+                req.set_markup(f"<b>{_('Required')}</b>")
+                req.set_halign(Gtk.Align.CENTER)
+                avail = Gtk.Label()
+                avail.set_markup(f"<b>{_('Available')}</b>")
+                avail.set_halign(Gtk.Align.CENTER)
+                estim = Gtk.Label()
+                estim.set_markup(f"<b>{_('Estimate')}</b>")
+                estim.set_halign(Gtk.Align.CENTER)
+
+                checkgrid.attach(title, 0, 0, 3, 1)
+                checkgrid.attach(req, 0, 1, 1, 1)
+                checkgrid.attach(avail, 1, 1, 1, 1)
+                checkgrid.attach(estim, 2, 1, 1, 1)
+
+                scales = self._printer.get_scales()
+                reqs = metadata['filament_weight_total']
+                reqs = reqs if type(reqs) is list else [reqs]
+                i = 2
+                for device, value in zip(scales, reqs):
+                    a = Gtk.Label(f"{value:.2f} g" if value < 1000 else f"{value / 1000:.2f} Kg")
+                    a.set_halign(Gtk.Align.START)
+                    checkgrid.attach(a, 0, i, 1, 1)
+
+                    w = self._printer.get_dev_stat(device, 'weight')
+                    b = Gtk.Label(f"{w:.2f} g" if w < 1000 else f"{w / 1000:.2f} Kg")
+                    b.set_halign(Gtk.Align.START)
+                    checkgrid.attach(b, 1, i, 1, 1)
+
+                    if w >= (value + 10):
+                        c = self._gtk.Button("complete", scale=self.bts)
+                    else:
+                        time = metadata['estimated_time']
+                        time = w / value * time if value > 0 else 0
+                        c = Gtk.Label("%02dh %02dm %02ds" % self.seconds_to_time(time))
+                    c.set_halign(Gtk.Align.CENTER)
+                    checkgrid.attach(c, 2, i, 1, 1)
+                    i += 1
+                box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+                box.add(checkgrid)
+                grid.attach(box, 1, 0, 1, 2)
 
         dialog = self._gtk.Dialog(self._screen, buttons, grid, self.confirm_print_response, filename)
         dialog.set_title(_("Print"))
+
+    def seconds_to_time(self, seconds):
+        hours = int(seconds / 3600)
+        minutes = int((seconds % 3600) / 60)
+        seconds = int((seconds % 3600) % 60)
+        return hours, minutes, seconds
 
     def confirm_print_response(self, dialog, response_id, filename):
         self._gtk.remove_dialog(dialog)
