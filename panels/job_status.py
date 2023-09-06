@@ -30,6 +30,8 @@ class JobStatusPanel(ScreenPanel):
         self.oheight = 0
         self.current_extruder = None
         self.fila_section = 0
+        self.estimated = 0
+        self.flag_change_filament = False
         self.filename_label = self.filename = self.prev_pos = self.prev_gpos = None
         self.can_close = False
         self.flow_timeout = self.animation_timeout = None
@@ -70,6 +72,7 @@ class JobStatusPanel(ScreenPanel):
         self.labels['flowrate_lbl'] = Gtk.Label(_("Flowrate:"))
         self.labels['height_lbl'] = Gtk.Label(_("Height:"))
         self.labels['layer_lbl'] = Gtk.Label(_("Layer:"))
+        self.labels['change_filament'] = Gtk.Label(_("Change filament:"))
 
         for fan in self._printer.get_fans():
             # fan_types = ["controller_fan", "fan_generic", "heater_fan"]
@@ -142,6 +145,7 @@ class JobStatusPanel(ScreenPanel):
         self.content.add(self.grid)
 
     def create_status_grid(self, widget=None):
+        logging.info(f"create_status_grid: {self.file_metadata}")
         buttons = {
             'speed': self._gtk.Button("speed+", "-", None, self.bts, Gtk.PositionType.LEFT, 1),
             'z': self._gtk.Button("home-z", "-", None, self.bts, Gtk.PositionType.LEFT, 1),
@@ -149,10 +153,12 @@ class JobStatusPanel(ScreenPanel):
             'fan': self._gtk.Button("fan", "-", None, self.bts, Gtk.PositionType.LEFT, 1),
             'elapsed': self._gtk.Button("clock", "-", None, self.bts, Gtk.PositionType.LEFT, 1),
             'left': self._gtk.Button("hourglass", "-", None, self.bts, Gtk.PositionType.LEFT, 1),
+            'change_filament': self._gtk.Button("change_filament", "-", None, self.bts, Gtk.PositionType.LEFT, 1)
         }
         for button in buttons:
             buttons[button].set_halign(Gtk.Align.START)
         buttons['fan'].connect("clicked", self.menu_item_clicked, "fan", {"panel": "fan", "name": _("Fan")})
+        buttons['change_filament'].set_visible(False)
         self.buttons.update(buttons)
 
         self.labels['temp_grid'] = Gtk.Grid()
@@ -239,6 +245,7 @@ class JobStatusPanel(ScreenPanel):
         info.attach(szfe, 0, 1, 1, 2)
         info.attach(self.buttons['elapsed'], 0, 3, 1, 1)
         info.attach(self.buttons['left'], 0, 4, 1, 1)
+        info.attach(self.buttons['change_filament'], 0, 5, 1, 1)
         self.status_grid = info
 
     def create_extrusion_grid(self, widget=None):
@@ -357,6 +364,7 @@ class JobStatusPanel(ScreenPanel):
         if self.flow_timeout is None:
             self.flow_timeout = GLib.timeout_add_seconds(2, self.update_flow)
         self._screen.base_panel_show_all()
+        self.flag_change_filament = False
 
     def deactivate(self):
         if self.flow_timeout is not None:
@@ -623,6 +631,62 @@ class JobStatusPanel(ScreenPanel):
         remaining_label = f"{self.labels['left'].get_text()}  {self.labels['time_left'].get_text()}"
         self.buttons['left'].set_label(remaining_label)
 
+        if self._printer.has_scales() and "filament_weight_total" in self.file_metadata:
+            change_in_seconds = self.estimate_change_filament()
+            change_filament_label = f"{self.labels['change_filament'].get_text()} {('%02dh %02dm %02ds' % self.seconds_to_time(change_in_seconds)) if change_in_seconds < self.estimated else '-'}"
+            self.buttons['change_filament'].set_visible(True)
+            self.buttons['change_filament'].set_label(change_filament_label)
+
+    def estimate_change_filament(self):
+        scales = self._printer.get_scales()
+        filament_weight = self.file_metadata['filament_weight_total']
+        filament_weight = filament_weight if type(filament_weight) is list else [filament_weight]
+        min = float('inf')
+        min_device = None
+        for device, value in zip(scales, filament_weight):
+            value = value / 1000
+            weight = self._printer.get_dev_stat(device, 'weight')
+            tare = self._printer.get_dev_stat(device, 'tare')
+            weight = weight - tare
+            weight = weight if weight > 0. else 0.
+            change_time = weight / value * self.estimated
+            if change_time < min:
+                min = change_time
+                min_device = device
+        if min > 0 and min < 1800 and not self.flag_change_filament:
+            self.flag_change_filament = True
+            self.show_filament_alert(min_device)
+        return min
+
+    def show_filament_alert(self, device):
+        label = Gtk.Label(_("Attenzione, filamento in esaurimento!"))
+        label.set_hexpand(True)
+        label.set_halign(Gtk.Align.CENTER)
+        label.set_vexpand(True)
+        label.set_valign(Gtk.Align.CENTER)
+        label.set_line_wrap(True)
+        label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+
+        grid = self._gtk.HomogeneousGrid()
+        grid.attach(label, 0, 0, 1, 1)
+        buttons = [
+            {"name": _("Ok"), "response": Gtk.ResponseType.APPLY},
+            {"name": _("Close"), "response": Gtk.ResponseType.CANCEL}
+        ]
+        dialog = self._gtk.Dialog(self._screen, buttons, grid, self.pause_confirm, device)
+        dialog.set_title(_("Filament Alert"))
+
+    def pause_confirm(self, dialog, response_id, device):
+        self._gtk.remove_dialog(dialog)
+        if response_id == Gtk.ResponseType.APPLY:
+            self.pause()
+
+    def seconds_to_time(self, seconds):
+        hours = int(seconds / 3600)
+        minutes = int((seconds % 3600) / 60)
+        seconds = int((seconds % 3600) % 60)
+        return hours, minutes, seconds
+
     def update_flow(self):
         if not self.flowstore:
             self.flowstore.append(0)
@@ -672,6 +736,7 @@ class JobStatusPanel(ScreenPanel):
                 estimated = (filament_time + file_time) / 2
             else:
                 estimated = file_time
+        self.estimated = estimated
         self.labels["est_time"].set_label(self.format_time(estimated))
         self.labels["time_left"].set_label(self.format_eta(estimated, total_duration))
 

@@ -191,5 +191,6 @@ class ScalePanel(ScreenPanel):
         for x in (self._printer.get_scales()):
             self.update_weight(
                 x, 
-                self._printer.get_dev_stat(x, "weight")
+                self._printer.get_dev_stat(x, "weight"),
+                self._printer.get_dev_stat(x, "tare")
             )

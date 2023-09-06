@@ -91,9 +91,9 @@ class Printer:
                 self.scales.append(x)
                 self.devices[x] = {
                     "weight": 0.,
-                    "tare": self.config[x].get('tare', 0.),
-                    "diameter": self.config[x].get('diameter', 0.),
-                    "density": self.config[x].get('density', 0.),
+                    "tare": float(self.config[x].get('tare', 0.)),
+                    "diameter": float(self.config[x].get('diameter', 0.)),
+                    "density": float(self.config[x].get('density', 0.)),
                 }
         self.process_update(data)
 
@@ -330,6 +330,9 @@ class Printer:
 
     def get_scales(self):
         return self.scales
+    
+    def has_scales(self):
+        return len(self.scales) > 0
 
     def get_tool_number(self, tool):
         return self.tools.index(tool)

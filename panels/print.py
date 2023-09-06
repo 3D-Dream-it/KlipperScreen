@@ -312,7 +312,7 @@ class PrintPanel(ScreenPanel):
 
         grid = Gtk.Grid()
         grid.set_vexpand(True)
-        grid.set_halign(Gtk.Align.CENTER)
+        grid.set_halign(Gtk.Align.FILL)
         grid.set_valign(Gtk.Align.CENTER)
         grid.attach(label, 0, 0, 1, 1)
 
@@ -323,7 +323,7 @@ class PrintPanel(ScreenPanel):
             grid.attach(image, 0, 1, 1, 1)
 
         metadata_response = self._screen.apiclient.send_request(f"server/files/metadata?filename={filename}")
-        if metadata_response:
+        if metadata_response and self._printer.has_scales():
             metadata = metadata_response['result']
             if "filament_weight_total" in metadata and "estimated_time" in metadata:
                 checkgrid = Gtk.Grid()
@@ -338,7 +338,7 @@ class PrintPanel(ScreenPanel):
                 avail.set_markup(f"<b>{_('Available')}</b>")
                 avail.set_halign(Gtk.Align.CENTER)
                 estim = Gtk.Label()
-                estim.set_markup(f"<b>{_('Estimate')}</b>")
+                estim.set_markup(f"<b>{_('Change in')}</b>")
                 estim.set_halign(Gtk.Align.CENTER)
 
                 checkgrid.attach(title, 0, 0, 3, 1)
@@ -351,20 +351,26 @@ class PrintPanel(ScreenPanel):
                 reqs = reqs if type(reqs) is list else [reqs]
                 i = 2
                 for device, value in zip(scales, reqs):
-                    a = Gtk.Label(f"{value:.2f} g" if value < 1000 else f"{value / 1000:.2f} Kg")
-                    a.set_halign(Gtk.Align.START)
+                    value = value / 1000
+                    a = Gtk.Label(f"{value:.2f} Kg")
+                    a.set_halign(Gtk.Align.CENTER)
                     checkgrid.attach(a, 0, i, 1, 1)
 
                     w = self._printer.get_dev_stat(device, 'weight')
-                    b = Gtk.Label(f"{w:.2f} g" if w < 1000 else f"{w / 1000:.2f} Kg")
-                    b.set_halign(Gtk.Align.START)
+                    t = self._printer.get_dev_stat(device, 'tare')
+                    w = w - (t)
+                    w = w if w > 0. else 0.
+                    b = Gtk.Label(f"{w:.2f} Kg")
+                    b.set_halign(Gtk.Align.CENTER)
                     checkgrid.attach(b, 1, i, 1, 1)
 
-                    if w >= (value + 10):
-                        c = self._gtk.Button("complete", scale=self.bts)
+                    if w >= (value + 0.1):
+                        c = self._gtk.Button("complete", scale=self.bts, style=None) # check icon
+                        c.set_hexpand(False)
+                        c.set_vexpand(False)
                     else:
                         time = metadata['estimated_time']
-                        time = w / value * time if value > 0 else 0
+                        time = w / value * time
                         c = Gtk.Label("%02dh %02dm %02ds" % self.seconds_to_time(time))
                     c.set_halign(Gtk.Align.CENTER)
                     checkgrid.attach(c, 2, i, 1, 1)
