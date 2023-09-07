@@ -187,8 +187,15 @@ class ScreenPanel:
         if value is None:
             return
         
+        if tare is None:
+            tare = 0
+        
+        value = value - (tare)
+        value = value if value > 0. else 0.
+        new_label = f"{value:.2f} Kg"
+        
         if device in self.devices:
-            value = value - (tare)
-            value = value if value > 0. else 0.
-            label = f"{value:.2f} Kg"
-            self.devices[device]["weight"].get_child().set_label(label)
+            self.devices[device]["weight"].get_child().set_label(new_label)
+
+        if device in self.labels:
+            self.labels[device].set_label(new_label)

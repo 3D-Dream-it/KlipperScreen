@@ -162,7 +162,7 @@ class JobStatusPanel(ScreenPanel):
         self.buttons.update(buttons)
 
         self.labels['temp_grid'] = Gtk.Grid()
-        nlimit = 2 if self._screen.width <= 480 else 3
+        nlimit = 2 if self._screen.width <= 480 else 4
         n = 0
         self.buttons['extruder'] = {}
         if self._printer.get_tools():
@@ -200,6 +200,20 @@ class JobStatusPanel(ScreenPanel):
                                                     {"panel": "temperature", "name": _("Temperature")})
                 self.buttons['heater'][dev].set_halign(Gtk.Align.START)
                 self.labels['temp_grid'].attach(self.buttons['heater'][dev], n, 0, 1, 1)
+                n += 1
+        self.buttons['scale'] = {}
+        for dev in self._printer.get_scales():
+            if n >= nlimit:
+                break
+            logging.info(dev)
+            if dev.startswith("scale"):
+                self.buttons['scale'][dev] = self._gtk.Button("scale", "", None, self.bts, Gtk.PositionType.LEFT, 1)
+                self.labels[dev] = Gtk.Label("-")
+                self.buttons['scale'][dev].set_label(self.labels[dev].get_text())
+                #self.buttons['scale'][dev].connect("clicked", self.menu_item_clicked, "scale",
+                #                                    {"panel": "scale", "name": _("Scale")})
+                self.buttons['scale'][dev].set_halign(Gtk.Align.START)
+                self.labels['temp_grid'].attach(self.buttons['scale'][dev], n, 0, 1, 1)
                 n += 1
         extra_item = not self._show_heater_power
         if self.ks_printer_cfg is not None:
@@ -535,6 +549,14 @@ class JobStatusPanel(ScreenPanel):
                     self._printer.get_dev_stat(x, "power"),
                 )
                 self.buttons['heater'][x].set_label(self.labels[x].get_text())
+        for x in self._printer.get_scales():
+            if x in self.buttons['scale']:
+                self.update_weight(
+                    x,
+                    self._printer.get_dev_stat(x, "weight"),
+                    self._printer.get_dev_stat(x, "tare")
+                )
+                self.buttons['scale'][x].set_label(self.labels[x].get_text())
 
         self.update_message()
 
