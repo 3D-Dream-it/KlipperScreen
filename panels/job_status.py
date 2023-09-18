@@ -158,7 +158,6 @@ class JobStatusPanel(ScreenPanel):
         for button in buttons:
             buttons[button].set_halign(Gtk.Align.START)
         buttons['fan'].connect("clicked", self.menu_item_clicked, "fan", {"panel": "fan", "name": _("Fan")})
-        buttons['change_filament'].set_visible(False)
         self.buttons.update(buttons)
 
         self.labels['temp_grid'] = Gtk.Grid()
@@ -658,6 +657,8 @@ class JobStatusPanel(ScreenPanel):
             change_filament_label = f"{self.labels['change_filament'].get_text()} {('%02dh %02dm %02ds' % self.seconds_to_time(change_in_seconds)) if change_in_seconds < self.estimated else '-'}"
             self.buttons['change_filament'].set_visible(True)
             self.buttons['change_filament'].set_label(change_filament_label)
+        else:
+            self.buttons['change_filament'].set_visible(False)
 
     def estimate_change_filament(self):
         scales = self._printer.get_scales()
