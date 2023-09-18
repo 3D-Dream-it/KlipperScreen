@@ -100,11 +100,11 @@ class ScalePanel(ScreenPanel):
         
         for name, header in self.presets.items():
             if name in scale_master_config:
-                values = scale_master_config[name].replace(" ", "").split(',')
+                values = scale_master_config[name].replace(" ", "").split(',') # string values
                 target = name.replace("_preset", "")
-                current = self._printer.get_dev_stat(device, target)
-                header = header + f': {current}'
-                preset = self.create_preset(device, values, current, target, header)
+                current = self._printer.get_dev_stat(device, target) # float value
+                header = header + f': {current:.2f}'
+                preset = self.create_preset(device, values, str(current), target, header)
                 vbox.add(preset)
         
         close = self._gtk.Button('cancel', _('Close'), None, self.bts, Gtk.PositionType.LEFT, 1)
@@ -158,8 +158,8 @@ class ScalePanel(ScreenPanel):
         def on_value_confirm(value):
             self.update_target(widget, device, target, value)
 
-        if "keypad" not in self.labels:
-            self.labels["keypad"] = DecimalKeypad(self._screen, on_value_confirm, self.hide_config)
+        # if "keypad" not in self.labels:
+        self.labels["keypad"] = DecimalKeypad(self._screen, on_value_confirm, self.hide_config)
         self.labels["keypad"].clear()
 
         self.grid.remove_column(1)
@@ -176,12 +176,12 @@ class ScalePanel(ScreenPanel):
             self._screen._ws.klippy.gcode_script(KlippyGcodes.scale_calibration(device, value))
             self.hide_config(widget)
 
-        if "keypad2" not in self.labels:
-            self.labels["keypad2"] = DecimalKeypad(self._screen, on_value_confirm, self.hide_config, title="Known weight (Kg)")
-        self.labels["keypad2"].clear()
+        # if "keypad2" not in self.labels:
+        self.labels["keypad"] = DecimalKeypad(self._screen, on_value_confirm, self.hide_config, title=_("Known weight (Kg)"))
+        self.labels["keypad"].clear()
 
         self.grid.remove_column(1)
-        self.grid.attach(self.labels["keypad2"], 1, 0, 1, 1)
+        self.grid.attach(self.labels["keypad"], 1, 0, 1, 1)
         self.grid.show_all()
 
     def process_update(self, action, data):
