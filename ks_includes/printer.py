@@ -231,6 +231,7 @@ class Printer:
         return None
 
     def get_printer_status_data(self):
+        print(self.get_stat("virtual_sdcard").copy())
         data = {
             "printer": {
                 "extruders": {"count": self.extrudercount},
@@ -242,6 +243,7 @@ class Printer:
                 "idle_timeout": self.get_stat("idle_timeout").copy(),
                 "pause_resume": {"is_paused": self.state == "paused"},
                 "power_devices": {"count": len(self.get_power_devices())},
+                "virtual_sdcard": self.get_stat("virtual_sdcard").copy()
             }
         }
 
