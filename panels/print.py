@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+import subprocess
 
 import gi
 
@@ -154,8 +155,39 @@ class PrintPanel(ScreenPanel):
         if show is True:
             self.dir_panels[directory].show_all()
         return False
+    
+    def is_usb_media(self, fullpath):
+        fullpath = "/home/pi/printer_data/" + fullpath
+        if not os.path.exists(fullpath):
+            return False
+        if os.path.isfile(fullpath):
+            return False
+        try:
+            lines = subprocess.check_output(["mount"]).decode("utf-8").splitlines()
+            return any([fullpath in line for line in lines])
+        except Exception as e:
+            logging.error(e)
+            return False
+    
+    def confirm_umount(self, widget, dirpath):
+        logging.debug(f"Sending umount {dirpath}")
+        self._screen._confirm_dialog(None, "Espellere la chiavetta?", self.unmount_media, dirpath)
+    
+    def unmount_media(self, dirpath):
+        logging.info(f"Ejecting {dirpath}")
+        target_dir = f"/home/pi/printer_data/{dirpath}"
+        for line in subprocess.check_output(["mount"]).decode("utf-8").splitlines():
+            if target_dir in line:
+                device = line.split()[0]
+                result = subprocess.call(["sudo", "umount", device])
+                if result == 0:
+                    logging.info("done")
+                    GLib.timeout_add_seconds(2, self._screen.files.refresh_files)
+                else:
+                    logging.error("can't eject the USB")
 
     def _create_row(self, fullpath, filename=None):
+        logging.info(f'new row: fp: {fullpath} - fn: {filename}')
         name = Gtk.Label()
         name.get_style_context().add_class("print-filename")
         if filename:
@@ -172,7 +204,11 @@ class PrintPanel(ScreenPanel):
         info.set_halign(Gtk.Align.START)
         info.get_style_context().add_class("print-info")
 
-        delete = self._gtk.Button("delete", style="color1", scale=self.bts)
+        is_media = self.is_usb_media(fullpath)
+        if is_media:
+            delete = self._gtk.Button("eject", style="color1", scale=self.bts)
+        else:
+            delete = self._gtk.Button("delete", style="color1", scale=self.bts)
         delete.set_hexpand(False)
         rename = self._gtk.Button("files", style="color2", scale=self.bts)
         rename.set_hexpand(False)
@@ -191,13 +227,16 @@ class PrintPanel(ScreenPanel):
             action.connect("clicked", self.change_dir, fullpath)
             icon = self._gtk.Button("folder")
             icon.connect("clicked", self.change_dir, fullpath)
-            delete.connect("clicked", self.confirm_delete_directory, fullpath)
+            if is_media:
+                delete.connect("clicked", self.confirm_umount, fullpath)
+            else:
+                delete.connect("clicked", self.confirm_delete_directory, fullpath)
             rename.connect("clicked", self.show_rename, fullpath)
         icon.set_hexpand(False)
         action.set_hexpand(False)
         action.set_halign(Gtk.Align.END)
 
-        delete.connect("clicked", self.confirm_delete_file, f"gcodes/{fullpath}")
+        # delete.connect("clicked", self.confirm_delete_file, f"gcodes/{fullpath}")
 
         row = Gtk.Grid()
         row.get_style_context().add_class("frame-item")

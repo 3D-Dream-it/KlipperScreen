@@ -823,6 +823,32 @@ class KlipperScreen(Gtk.Window):
             self.gtk.remove_dialog(self.confirm)
         self.confirm = self.gtk.Dialog(self, buttons, label, self._confirm_send_action_response, method, params)
         self.confirm.set_title("KlipperScreen")
+    
+    def _confirm_dialog(self, widget, text, on_confirm, *args):
+        buttons = [
+            {"name": _("Continue"), "response": Gtk.ResponseType.OK},
+            {"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL}
+        ]
+
+        try:
+            j2_temp = self.env.from_string(text)
+            text = j2_temp.render()
+        except Exception as e:
+            logging.debug(f"Error parsing jinja for confirm_send_action\n{e}")
+
+        label = Gtk.Label()
+        label.set_markup(text)
+        label.set_hexpand(True)
+        label.set_halign(Gtk.Align.CENTER)
+        label.set_vexpand(True)
+        label.set_valign(Gtk.Align.CENTER)
+        label.set_line_wrap(True)
+        label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+
+        if self.confirm is not None:
+            self.gtk.remove_dialog(self.confirm)
+        self.confirm = self.gtk.Dialog(self, buttons, label, self._confirm_dialog_response, on_confirm, *args)
+        self.confirm.set_title("KlipperScreen")
 
     def _confirm_send_action_response(self, dialog, response_id, method, params):
         self.gtk.remove_dialog(dialog)
@@ -830,6 +856,11 @@ class KlipperScreen(Gtk.Window):
             self._send_action(None, method, params)
         if method == "server.files.delete_directory":
             GLib.timeout_add_seconds(2, self.files.refresh_files)
+    
+    def _confirm_dialog_response(self, dialog, response_id, on_confirm, *args):
+        self.gtk.remove_dialog(dialog)
+        if response_id == Gtk.ResponseType.OK:
+            on_confirm(*args)
 
     def _send_action(self, widget, method, params):
         logging.info(f"{method}: {params}")
