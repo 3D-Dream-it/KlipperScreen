@@ -11,6 +11,8 @@ from math import pi, sqrt
 from statistics import median
 from time import time
 
+from ks_includes.KlippyGcodes import KlippyGcodes
+
 
 def create_panel(*args):
     return JobStatusPanel(*args)
@@ -499,7 +501,21 @@ class JobStatusPanel(ScreenPanel):
     def close_panel(self, widget=None):
         if self.can_close:
             logging.debug("Closing job_status panel")
+            self._screen._ws.klippy.gcode_script(KlippyGcodes.SEMAFORO_OFF)
             self._screen.state_ready(wait=False)
+            self.delete_file()
+
+    def delete_file(self):
+        if self.filename.startswith("."):
+            return
+
+        params = {"path": f"gcodes/{self.filename}"}
+        self._screen._confirm_send_action(
+            None,
+            _("Delete File?") + "\n\n" + self.filename,
+            "server.files.delete_file",
+            params
+        )
 
     def enable_button(self, *args):
         for arg in args:

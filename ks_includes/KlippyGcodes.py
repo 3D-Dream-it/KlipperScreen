@@ -25,6 +25,8 @@ class KlippyGcodes:
     ABORT = "ABORT"
     ACCEPT = "ACCEPT"
 
+    SEMAFORO_OFF = "_SEMAFORO_OFF"
+
     @staticmethod
     def set_bed_temp(temp):
         return f"{KlippyGcodes.SET_BED_TEMP} S{temp}"
