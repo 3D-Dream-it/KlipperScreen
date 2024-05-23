@@ -274,6 +274,9 @@ class BasePanel(ScreenPanel):
             self.action_bar.show_all()
             self.content.show_all()
             self.macro_content.hide()
+        
+        for dialog in self._screen.dialogs:
+            dialog.show_all()
 
         with contextlib.suppress(Exception):
             if data["toolhead"]["extruder"] != self.current_extruder:
