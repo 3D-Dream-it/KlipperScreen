@@ -281,3 +281,12 @@ class KlippyGtk:
             window.set_cursor(
                 Gdk.Cursor.new_for_display(Gdk.Display.get_default(), Gdk.CursorType.BLANK_CURSOR))
             os.system("xsetroot  -cursor ks_includes/emptyCursor.xbm ks_includes/emptyCursor.xbm")
+
+    @staticmethod
+    def HomogeneousGrid(width=None, height=None):
+        g = Gtk.Grid()
+        g.set_row_homogeneous(True)
+        g.set_column_homogeneous(True)
+        if width is not None and height is not None:
+            g.set_size_request(width, height)
+        return g

@@ -237,8 +237,22 @@ class Panel(MenuPanel):
         self.left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.left_panel.add(scroll)
 
+        count = 0
         for d in self._printer.get_temp_devices():
+            count += 1
             self.add_device(d)
+        
+        if len(self._printer.get_scales()) > 0:
+            name = Gtk.Label(label="")
+            temp = Gtk.Label(_("Weight (Kg)"))
+            temp.get_style_context().add_class("heater-grid-temp")
+            
+            count += 1
+            self.labels['devices'].attach(name, 0, count, 1, 1)
+            self.labels['devices'].attach(temp, 1, count, 1, 1)
+            for d in self._printer.get_scales():
+                count += 1
+                self.add_scale(d, count)
 
         return self.left_panel
 
@@ -273,6 +287,12 @@ class Panel(MenuPanel):
                     self._printer.get_stat(x, "target"),
                     self._printer.get_stat(x, "power"),
                 )
+        for x in self._printer.get_scales():
+            self.update_weight(
+                x, 
+                self._printer.get_dev_stat(x, "weight"),
+                self._printer.get_dev_stat(x, "tare")
+            )
 
     def show_numpad(self, widget, device):
 
@@ -313,3 +333,27 @@ class Panel(MenuPanel):
             self.hide_numpad()
             return True
         return False
+
+    def add_scale(self, device, count):
+        devname = device.split()[1] if len(device.split()) > 1 else device
+        # Support for hiding devices by name
+        if devname.startswith("_"):
+            return False
+        
+        image = "scale"
+        name = self._gtk.Button(image, devname.capitalize().replace("_", " "), None, self.bts, Gtk.PositionType.LEFT, 1)
+        # name.connect("clicked", self.toggle_visibility, device)
+        name.set_alignment(0, .5)
+        weight = self._gtk.Button(label="", lines=1)
+        self.devices[device] = {
+            "name": name,
+            "weight": weight,
+            "class": "",
+            "can_target": False,
+            "visible": True
+        }
+        self.labels['devices'].insert_row(count)
+        self.labels['devices'].attach(name, 0, count, 1, 1)
+        self.labels['devices'].attach(weight, 1, count, 1, 1)
+        self.labels['devices'].show_all()
+        return True

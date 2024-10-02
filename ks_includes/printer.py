@@ -29,6 +29,8 @@ class Printer:
         self.temp_devices = self.sensors = None
         self.system_info = {}
         self.warnings = []
+        self.scales = []
+        self.scaledevcount = 0
 
     def reinit(self, printer_info, data):
         self.config = data['configfile']['config']
@@ -47,6 +49,8 @@ class Printer:
         self.stop_tempstore_updates()
         self.system_info.clear()
         self.warnings = []
+        self.scales = []
+        self.scaledevcount = 0
 
         for x in self.config.keys():
             # Support for hiding devices by name
@@ -89,6 +93,15 @@ class Printer:
                 "pca9632"
             ):
                 self.ledcount += 1
+            if section == "scale":
+                self.scaledevcount += 1
+                self.scales.append(x)
+                self.data[x] = {
+                    "weight": 0.,
+                    "tare": float(self.config[x].get('tare', 0.)),
+                    "diameter": float(self.config[x].get('diameter', 0.)),
+                    "density": float(self.config[x].get('density', 0.)),
+                }
 
         self.tools = sorted(self.tools)
         self.log_counts(printer_info)
@@ -98,6 +111,7 @@ class Printer:
         logging.info(f"Klipper version: {printer_info['software_version']}")
         logging.info(f"# Extruders: {self.extrudercount}")
         logging.info(f"# Temperature devices: {self.tempdevcount}")
+        logging.info(f"# Scale devices: {self.scaledevcount}")
         logging.info(f"# Fans: {self.fancount}")
         logging.info(f"# Output pins: {self.output_pin_count}")
         logging.info(f"# PWM tools: {self.pwm_tools_count}")
@@ -257,6 +271,8 @@ class Printer:
                 "gcode_macros": {"count": len(self.get_gcode_macros()), "list": self.get_gcode_macros()},
                 "leds": {"count": self.ledcount},
                 "config_sections": list(self.config.keys()),
+                "scale_devices": {"count": self.scaledevcount},
+                "virtual_sdcard": self.get_stat("virtual_sdcard").copy(),
             }
         }
 
@@ -409,3 +425,9 @@ class Printer:
     def enable_spoolman(self):
         logging.info("Enabling Spoolman")
         self.spoolman = True
+
+    def get_scales(self):
+        return self.scales
+
+    def has_scales(self):
+        return len(self.scales) > 0

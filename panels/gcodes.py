@@ -1,5 +1,5 @@
 import logging
-import os
+import os, subprocess
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -95,6 +95,8 @@ class Panel(ScreenPanel):
         self.set_loading(True)
         self._screen._ws.klippy.get_dir_info(self.load_files, self.cur_directory)
 
+        self.home_path = os.path.expanduser("~")
+
     def switch_view_mode(self, widget):
         self.list_mode ^= True
         logging.info(f"lista {self.list_mode}")
@@ -151,7 +153,11 @@ class Panel(ScreenPanel):
             info.set_markup(self.get_info_str(item, path))
             delete = Gtk.Button(hexpand=False, vexpand=False, can_focus=False, always_show_image=True)
             delete.get_style_context().add_class("color1")
-            delete.set_image(self._gtk.Image("delete", self.list_button_size, self.list_button_size))
+            is_media = self.is_usb_media(path)
+            if is_media:
+                delete.set_image(self._gtk.Image("eject", self.list_button_size, self.list_button_size))
+            else:
+                delete.set_image(self._gtk.Image("delete", self.list_button_size, self.list_button_size))
             rename = Gtk.Button(hexpand=False, vexpand=False, can_focus=False, always_show_image=True)
             rename.get_style_context().add_class("color2")
             rename.set_image(self._gtk.Image("files", self.list_button_size, self.list_button_size))
@@ -186,7 +192,10 @@ class Panel(ScreenPanel):
             elif 'dirname' in item:
                 icon.connect("clicked", self.change_dir, path)
                 image_args = (None, icon, self.thumbsize / 2, True, "folder")
-                delete.connect("clicked", self.confirm_delete_directory, path)
+                if is_media:
+                    delete.connect("clicked", self.confirm_umount, path)
+                else:
+                    delete.connect("clicked", self.confirm_delete_directory, path)
                 rename.connect("clicked", self.show_rename, path)
                 action = self._gtk.Button("load", style="color3")
                 action.connect("clicked", self.change_dir, path)
@@ -330,9 +339,10 @@ class Panel(ScreenPanel):
         )
         label.set_markup(f"<b>{filename}</b>")
 
-        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, vexpand=True)
+        main_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, vexpand=True)
         main_box.pack_start(label, False, False, 0)
 
+        # TODO: può causare problemi se mai ci sarà un display verticale
         orientation = Gtk.Orientation.VERTICAL if self._screen.vertical_mode else Gtk.Orientation.HORIZONTAL
         inside_box = Gtk.Box(orientation=orientation, vexpand=True)
 
@@ -358,6 +368,60 @@ class Panel(ScreenPanel):
 
         inside_box.pack_start(info_box, True, True, 0)
         main_box.pack_start(inside_box, True, True, 0)
+
+        metadata_response = self._screen.apiclient.send_request(f"server/files/metadata?filename={filename}")
+        if metadata_response and self._printer.has_scales():
+            metadata = metadata_response['result']
+            if "filament_weight_total" in metadata and "estimated_time" in metadata:
+                checkgrid = Gtk.Grid()
+                title = Gtk.Label()
+                title.set_markup(f"<b>{_('Filament Usage')}</b>")
+                title.set_hexpand(True)
+                title.set_halign(Gtk.Align.CENTER)
+                req = Gtk.Label()
+                req.set_markup(f"<b>{_('Required')}</b>")
+                req.set_halign(Gtk.Align.CENTER)
+                avail = Gtk.Label()
+                avail.set_markup(f"<b>{_('Available')}</b>")
+                avail.set_halign(Gtk.Align.CENTER)
+                estim = Gtk.Label()
+                estim.set_markup(f"<b>{_('Change in')}</b>")
+                estim.set_halign(Gtk.Align.CENTER)
+                checkgrid.attach(title, 0, 0, 3, 1)
+                checkgrid.attach(req, 0, 1, 1, 1)
+                checkgrid.attach(avail, 1, 1, 1, 1)
+                checkgrid.attach(estim, 2, 1, 1, 1)
+                scales = self._printer.get_scales()
+                reqs = metadata['filament_weight_total']
+                reqs = reqs if type(reqs) is list else [reqs]
+                i = 2
+                for device, value in zip(scales, reqs):
+                    value = value / 1000
+                    a = Gtk.Label(f"{value:.2f} Kg")
+                    a.set_halign(Gtk.Align.CENTER)
+                    checkgrid.attach(a, 0, i, 1, 1)
+                    w = self._printer.get_dev_stat(device, 'weight')
+                    t = self._printer.get_dev_stat(device, 'tare')
+                    w = w - (t)
+                    w = w if w > 0. else 0.
+                    b = Gtk.Label(f"{w:.2f} Kg")
+                    b.set_halign(Gtk.Align.CENTER)
+                    checkgrid.attach(b, 1, i, 1, 1)
+                    if w >= (value + 0.1):
+                        c = self._gtk.Button("complete", scale=self.bts, style=None) # check icon
+                        c.set_hexpand(False)
+                        c.set_vexpand(False)
+                    else:
+                        time = metadata['estimated_time']
+                        time = w / value * time
+                        c = Gtk.Label("%02dh %02dm %02ds" % self.seconds_to_time(time))
+                    c.set_halign(Gtk.Align.CENTER)
+                    checkgrid.attach(c, 2, i, 1, 1)
+                    i += 1
+                box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+                box.add(checkgrid)
+                main_box.pack_start(box, True, True, 0)
+
         self._gtk.Dialog(f'{action} {filename}', buttons, main_box, self.confirm_print_response, filename)
 
     def confirm_print_response(self, dialog, response_id, filename):
@@ -566,3 +630,39 @@ class Panel(ScreenPanel):
 
     def close_fullscreen_thumbnail(self, dialog, response_id):
         self._gtk.remove_dialog(dialog)
+
+    def seconds_to_time(self, seconds):
+        hours = int(seconds / 3600)
+        minutes = int((seconds % 3600) / 60)
+        seconds = int((seconds % 3600) % 60)
+        return hours, minutes, seconds
+    
+    def is_usb_media(self, fullpath):
+        fullpath = f"{self.home_path}/printer_data/{fullpath}"
+        if not os.path.exists(fullpath):
+            return False
+        if os.path.isfile(fullpath):
+            return False
+        try:
+            lines = subprocess.check_output(["mount"]).decode("utf-8").splitlines()
+            return any([fullpath in line for line in lines])
+        except Exception as e:
+            logging.error(e)
+            return False
+    
+    def confirm_umount(self, widget, dirpath):
+        logging.debug(f"Sending umount {dirpath}")
+        self._screen._confirm_dialog(None, "Espellere la chiavetta?", self.unmount_media, dirpath)
+    
+    def unmount_media(self, dirpath):
+        logging.info(f"Ejecting {dirpath}")
+        target_dir = f"{self.home_path}/printer_data/{dirpath}"
+        for line in subprocess.check_output(["mount"]).decode("utf-8").splitlines():
+            if target_dir in line:
+                device = line.split()[0]
+                result = subprocess.call(["sudo", "umount", device])
+                if result == 0:
+                    logging.info("done")
+                    GLib.timeout_add_seconds(2, self._screen.files.refresh_files)
+                else:
+                    logging.error("can't eject the USB")

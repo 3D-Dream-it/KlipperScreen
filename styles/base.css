@@ -648,3 +648,7 @@ flowbox button {
 keyboard_box {
     padding: 0 20em;
 }
+
+#dialog-label {
+    font-size: 25px;
+}

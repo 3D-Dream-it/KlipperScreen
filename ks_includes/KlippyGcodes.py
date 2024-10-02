@@ -47,3 +47,19 @@ class KlippyGcodes:
             f'RED={color[0]} GREEN={color[1]} BLUE={color[2]} WHITE={color[3]} '
             f'SYNC=0 TRANSMIT=1'
         )
+
+    @staticmethod
+    def probe_skip_z():
+        return "G1 Z10 F1000"
+    
+    @staticmethod
+    def update_scale(device, target, value):
+        return f"UPDATE_SCALE DEVICE='{device}' TARGET='{target}' VALUE='{value}'"
+
+    @staticmethod
+    def scale_calibration(device, value):
+        return f"SCALE_CALIBRATION DEVICE='{device}' VALUE='{value}'"
+
+    @staticmethod
+    def turn_off_semaphore():
+        return "_SEMAFORO_OFF"

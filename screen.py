@@ -35,6 +35,7 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 klipperscreendir = pathlib.Path(__file__).parent.resolve()
 
+MODAL_DIALOG_TITLE = "ModalDialog"
 
 def set_text_direction(lang=None):
     rtl_languages = ['he']
@@ -74,6 +75,7 @@ class KlipperScreen(Gtk.Window):
     notification_log = []
     prompt = None
     tempstore_timeout = None
+    ongoing_macros = set()
 
     def __init__(self, args):
         self.server_info = None
@@ -286,6 +288,7 @@ class KlipperScreen(Gtk.Window):
                 "exclude_object": ["current_object", "objects", "excluded_objects"],
                 "manual_probe": ['is_active'],
                 "screws_tilt_adjust": ['results', 'error'],
+                "virtual_sdcard": ["can_resurrect"],
             }
         }
         for extruder in self.printer.get_tools():
@@ -305,6 +308,10 @@ class KlipperScreen(Gtk.Window):
             requested_updates['objects'][p] = ["value"]
         for led in self.printer.get_leds():
             requested_updates['objects'][led] = ["color_data"]
+        for scale in self.printer.get_scales():
+            requested_updates['objects'][scale] = ["weight", "diameter", "tare", "density"]
+        for macro in self.printer.get_config_section_list("gcode_macro "):
+            requested_updates['objects'][macro] = ["running"]
 
         self._ws.klippy.object_subscription(requested_updates)
 
@@ -328,7 +335,9 @@ class KlipperScreen(Gtk.Window):
                 else:
                     self._remove_all_panels()
                     for dialog in self.dialogs:
-                        self.gtk.remove_dialog(dialog)
+                        if dialog.get_title() != MODAL_DIALOG_TITLE:
+                            self.gtk.remove_dialog(dialog)
+                        
             else:
                 self._remove_current_panel()
             if panel_name not in self.panels:
@@ -346,6 +355,8 @@ class KlipperScreen(Gtk.Window):
                 self.panels[panel].set_extra(**kwargs)
             self.attach_panel(panel_name)
         except Exception as e:
+            self._menu_go_back()
+            self.show_popup_message(f"Error loading panel: {e}", 3)
             logging.exception(f"Error attaching panel:\n{e}\n\n{traceback.format_exc()}")
 
     def set_panel_title(self, title):
@@ -898,6 +909,12 @@ class KlipperScreen(Gtk.Window):
                 return
             elif data.startswith("!! "):
                 self.show_popup_message(data[3:], 3, from_ws=True)
+            elif data.startswith("*** "):
+                self.show_modal_dialog_message(data[4:], 1)
+            elif data.startswith("### "):
+                self.show_modal_dialog_message(data[4:], 2)
+            elif data.startswith("$$$ "):
+                self.show_modal_dialog_message(data[4:], 3)
             elif "unknown" in data.lower() and \
                     not ("TESTZ" in data or "MEASURE_AXES_NOISE" in data or "ACCELEROMETER_QUERY" in data):
                 self.show_popup_message(data, from_ws=True)
@@ -1244,7 +1261,77 @@ class KlipperScreen(Gtk.Window):
             self.vertical_mode = new_mode
             self.aspect_ratio = new_ratio
             logging.info(f"Vertical mode: {self.vertical_mode}")
+    
+    ### 3D Dream Customization
 
+    def close_popup_message(self, widget=None):
+        if self.popup_message is None:
+            return
+        self.popup_message.popdown()
+        if self.popup_timeout is not None:
+            GLib.source_remove(self.popup_timeout)
+        self.popup_message = self.popup_timeout = None
+        return False
+
+    def show_modal_dialog_message(self, message, mode):
+        scroll = self.gtk.ScrolledWindow()
+        scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        vbox.set_halign(Gtk.Align.CENTER)
+        vbox.set_valign(Gtk.Align.CENTER)
+        for line in message.split('/'):
+            label = Gtk.Label(label=line)
+            label.set_justify(Gtk.Justification.CENTER)
+            label.set_name("dialog-label")
+            label.set_line_wrap(True)
+            vbox.add(label)
+        scroll.add(vbox)
+        buttons = []
+        if mode == 1:
+            buttons.append({"name": _("Close"), "response": Gtk.ResponseType.CLOSE})
+        elif mode == 2:
+            buttons.append({"name": _("Ok"), "response": Gtk.ResponseType.OK})
+        else:
+            buttons.append({"name": _("Continue"), "response": Gtk.ResponseType.OK})
+            buttons.append({"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL})
+        dialog = self.gtk.Dialog(self, buttons, scroll, self._send_dialog_response)
+        dialog.set_keep_above(True)
+        dialog.set_title("ModalDialog")
+
+    def _send_dialog_response(self, dialog, response_id):
+        self.gtk.remove_dialog(dialog)
+        if response_id == Gtk.ResponseType.OK:
+            self.apiclient.send_request("printer/dialogs/ack")
+        elif response_id == Gtk.ResponseType.CANCEL:
+            self.apiclient.send_request("printer/dialogs/abort")
+
+    def _confirm_dialog(self, widget, text, on_confirm, *args):
+        buttons = [
+            {"name": _("Continue"), "response": Gtk.ResponseType.OK},
+            {"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL}
+        ]
+        try:
+            j2_temp = self.env.from_string(text)
+            text = j2_temp.render()
+        except Exception as e:
+            logging.debug(f"Error parsing jinja for confirm_send_action\n{e}")
+        label = Gtk.Label()
+        label.set_markup(text)
+        label.set_hexpand(True)
+        label.set_halign(Gtk.Align.CENTER)
+        label.set_vexpand(True)
+        label.set_valign(Gtk.Align.CENTER)
+        label.set_line_wrap(True)
+        label.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+        if self.confirm is not None:
+            self.gtk.remove_dialog(self.confirm)
+        self.confirm = self.gtk.Dialog(self, buttons, label, self._confirm_dialog_response, on_confirm, *args)
+        self.confirm.set_title("KlipperScreen")
+
+    def _confirm_dialog_response(self, dialog, response_id, on_confirm, *args):
+        self.gtk.remove_dialog(dialog)
+        if response_id == Gtk.ResponseType.OK:
+            on_confirm(*args)
 
 def main():
     parser = argparse.ArgumentParser(description="KlipperScreen - A GUI for Klipper")

@@ -288,3 +288,19 @@ class ScreenPanel:
         self.labels[boxname].attach(opt_array[opt_name]['row'], 0, pos, 1, 1)
         self.labels[boxname].show_all()
         return setting
+    
+    def update_weight(self, device, value, tare):
+        if value is None:
+            return
+
+        if tare is None:
+            tare = 0
+        
+        value = value - (tare)
+        value = value if value > 0. else 0.
+        new_label = f"{value:.2f} Kg"
+        
+        if device in self.devices:
+            self.devices[device]["weight"].get_child().set_label(new_label)
+        if device in self.labels:
+            self.labels[device].set_label(new_label)

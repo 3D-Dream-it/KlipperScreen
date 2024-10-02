@@ -23,6 +23,20 @@ class BasePanel(ScreenPanel):
         self.current_extruder = None
         self.last_usage_report = datetime.now()
         self.usage_report = 0
+
+        # Macro screen content
+        self.ongoing_macros = set()
+        self.macro_content = self._gtk.ScrolledWindow()
+        self.macro_content.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        vbox.set_halign(Gtk.Align.CENTER)
+        vbox.set_valign(Gtk.Align.CENTER)
+        label = Gtk.Label(label=_("Attendi ..."))
+        spinner = Gtk.Spinner()
+        vbox.add(spinner)
+        vbox.add(label)
+        self.macro_content.add(vbox)
+
         # Action bar buttons
         abscale = self.bts * 1.1
         self.control['back'] = self._gtk.Button('back', scale=abscale)
@@ -99,12 +113,14 @@ class BasePanel(ScreenPanel):
             self.main_grid.attach(self.titlebar, 0, 0, 1, 1)
             self.main_grid.attach(self.content, 0, 1, 1, 1)
             self.main_grid.attach(self.action_bar, 0, 2, 1, 1)
+            self.main_grid.attach(self.macro_content, 0, 1, 1, 1)
             self.action_bar.set_orientation(orientation=Gtk.Orientation.HORIZONTAL)
         else:
             self.main_grid.attach(self.action_bar, 0, 0, 1, 2)
             self.action_bar.set_orientation(orientation=Gtk.Orientation.VERTICAL)
             self.main_grid.attach(self.titlebar, 1, 0, 1, 1)
             self.main_grid.attach(self.content, 1, 1, 1, 1)
+            self.main_grid.attach(self.macro_content, 1, 1, 1, 1)
 
         self.update_time()
 
@@ -274,6 +290,25 @@ class BasePanel(ScreenPanel):
                         name = device.split()[1] if len(device.split()) > 1 else device
                         name = f"{name[:1].upper()}: "
                 self.labels[device].set_label(f"{name}{temp:.0f}°")
+
+        for key, value in data.items():
+            if not key.startswith('gcode_macro'):
+                continue
+            if value["running"]:
+                self.ongoing_macros.add(key)
+            elif key in self.ongoing_macros:
+                self.ongoing_macros.remove(key)
+        if self._screen.printer.state != "printing" and len(self.ongoing_macros) > 0:
+            self.action_bar.hide()
+            self.content.hide()
+            self.macro_content.show_all()
+        else:
+            self.action_bar.show_all()
+            self.content.show_all()
+            self.macro_content.hide()
+        # Restore the dialogs
+        for dialog in self._screen.dialogs:
+            dialog.show_all()
 
         if (self.current_extruder and 'toolhead' in data and 'extruder' in data['toolhead']
                 and data["toolhead"]["extruder"] != self.current_extruder):
