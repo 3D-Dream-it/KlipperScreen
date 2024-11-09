@@ -25,7 +25,6 @@ class BasePanel(ScreenPanel):
         self.usage_report = 0
 
         # Macro screen content
-        self.ongoing_macros = set()
         self.macro_content = self._gtk.ScrolledWindow()
         self.macro_content.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -291,24 +290,22 @@ class BasePanel(ScreenPanel):
                         name = f"{name[:1].upper()}: "
                 self.labels[device].set_label(f"{name}{temp:.0f}°")
 
-        for key, value in data.items():
-            if not key.startswith('gcode_macro'):
-                continue
-            if value["running"]:
-                self.ongoing_macros.add(key)
-            elif key in self.ongoing_macros:
-                self.ongoing_macros.remove(key)
-        if self._screen.printer.state != "printing" and len(self.ongoing_macros) > 0:
-            self.action_bar.hide()
-            self.content.hide()
-            self.macro_content.show_all()
-        else:
-            self.action_bar.show_all()
-            self.content.show_all()
-            self.macro_content.hide()
-        # Restore the dialogs
-        for dialog in self._screen.dialogs:
-            dialog.show_all()
+        try:
+            if 'gcode_macro' in data:
+                if self._screen.printer.state != "printing" and len(data['gcode_macro']['running_macros']) > 0:
+                    self.action_bar.hide()
+                    self.content.hide()
+                    self.macro_content.show_all()
+                else:
+                    self.action_bar.show_all()
+                    self.content.show_all()
+                    self.macro_content.hide()
+
+                # Restore the dialogs after the hide
+                for dialog in self._screen.dialogs:
+                    dialog.show_all()
+        except:
+            logging.error("error")
 
         if (self.current_extruder and 'toolhead' in data and 'extruder' in data['toolhead']
                 and data["toolhead"]["extruder"] != self.current_extruder):

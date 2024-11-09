@@ -153,6 +153,7 @@ class KlipperScreen(Gtk.Window):
         self.change_theme(self.theme)
         self.add(self.base_panel.main_grid)
         self.show_all()
+        self.base_panel.macro_content.hide()
         self.update_cursor(self.show_cursor)
         min_ver = (3, 8)
         if sys.version_info < min_ver:
@@ -289,6 +290,7 @@ class KlipperScreen(Gtk.Window):
                 "manual_probe": ['is_active'],
                 "screws_tilt_adjust": ['results', 'error'],
                 "virtual_sdcard": ["can_resurrect"],
+                "gcode_macro": ["running_macros"],
             }
         }
         for extruder in self.printer.get_tools():
@@ -310,8 +312,6 @@ class KlipperScreen(Gtk.Window):
             requested_updates['objects'][led] = ["color_data"]
         for scale in self.printer.get_scales():
             requested_updates['objects'][scale] = ["weight", "diameter", "tare", "density"]
-        for macro in self.printer.get_config_section_list("gcode_macro "):
-            requested_updates['objects'][macro] = ["running"]
 
         self._ws.klippy.object_subscription(requested_updates)
 
@@ -376,6 +376,7 @@ class KlipperScreen(Gtk.Window):
         if hasattr(self.panels[panel], "activate"):
             self.panels[panel].activate()
         self.show_all()
+        self.base_panel.macro_content.hide()
 
     def log_notification(self, message, level=0):
         time = datetime.now().strftime("%H:%M:%S")
@@ -673,6 +674,7 @@ class KlipperScreen(Gtk.Window):
             dialog.show()
         self.gtk.set_cursor(self.show_cursor, window=self.get_window())
         self.show_all()
+        self.base_panel.macro_content.hide()
         self.power_devices(None, self._config.get_main_config().get("screen_on_devices", ""), on=True)
 
     def check_dpms_state(self):
@@ -1221,6 +1223,7 @@ class KlipperScreen(Gtk.Window):
         self.base_panel.content.pack_end(box, False, False, 0)
 
         self.show_all()
+        self.base_panel.macro_content.hide()
         keyboard.add_id(xid)
 
         self.keyboard = {
